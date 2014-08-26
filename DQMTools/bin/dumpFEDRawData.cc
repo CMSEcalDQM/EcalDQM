@@ -1,6 +1,7 @@
 #include "DataFormats/FWLite/interface/Event.h"
 #include "DataFormats/FWLite/interface/Handle.h"
 #include "DataFormats/FEDRawData/interface/FEDRawDataCollection.h"
+#include "DataFormats/FEDRawData/interface/FEDNumbering.h"
 
 #include "FWCore/FWLite/interface/AutoLibraryLoader.h"
 
@@ -17,7 +18,7 @@ extern int optopt;
 extern int optind;
 extern char* optarg;
 
-void scanRaw(TFile*, TString const&);
+void scanRaw(TFile*, TString const&, bool = false);
 void dumpRaw(TFile*, TString const&, int, int, int);
 
 int
@@ -28,13 +29,14 @@ main(int argc, char** argv)
   int iFED(601);
   int nEvents(1);
   bool scan(false);
+  bool all(false);
 
   opterr = 0;
 
   bool parseOpts(true);
   int opt(0);
   while(parseOpts){
-    opt = getopt(argc, argv, ":c:s:F:n:Sh");
+    opt = getopt(argc, argv, ":c:s:F:n:SAh");
     switch(opt){
     case '?':
       std::cerr << "Unknown option -" << char(optopt) << std::endl;
@@ -58,6 +60,9 @@ main(int argc, char** argv)
     case 'S':
       scan = true;
       break;
+    case 'A':
+      all = true;
+      break;
     case 'h':
       std::cout << "Usage: dumpFEDRawData [-c Collection][-s iStart][-F iFED][-n nEvents][-S] input" << std::endl;
       return 0;
@@ -77,14 +82,14 @@ main(int argc, char** argv)
 
   TFile* input(TFile::Open(argv[optind]));
 
-  if(scan) scanRaw(input, collectionTag);
+  if(scan) scanRaw(input, collectionTag, all);
   else dumpRaw(input, collectionTag, iStart, iFED, nEvents);
 
   return 0;
 }
 
 void
-scanRaw(TFile* input, TString const& collectionTag)
+scanRaw(TFile* input, TString const& collectionTag, bool all/* = false*/)
 {
   fwlite::Event event(input);
 
@@ -98,7 +103,7 @@ scanRaw(TFile* input, TString const& collectionTag)
     return;
   }
 
-  for(int iFED(601); iFED != 655; ++iFED)
+  for(int iFED(all ? 0 : 601); iFED != (all ? FEDNumbering::lastFEDId() + 1 : 655); ++iFED)
     std::cout << iFED << " " << rawData->FEDData(iFED).size() << std::endl;
 }
 
