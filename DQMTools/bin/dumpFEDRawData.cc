@@ -116,6 +116,7 @@ main(int argc, char** argv)
   AutoLibraryLoader::enable();
 
   TFile* input(TFile::Open(argv[optind]));
+  if(!input) return 1;
 
   if(args.scan) scanRaw(*input, args);
   else dumpRaw(*input, args);
