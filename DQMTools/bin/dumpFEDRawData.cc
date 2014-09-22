@@ -18,9 +18,6 @@ extern int optopt;
 extern int optind;
 extern char* optarg;
 
-void scanRaw(TFile*, TString const&, int, bool = false);
-void dumpRaw(TFile*, TString const&, int, int, int);
-
 class Word {
 public:
   Word(uint64_t _data) : data_(_data) {}
@@ -38,22 +35,40 @@ private:
 
 std::ostream& operator<<(std::ostream& _stream, Word _w) { return _stream << _w.data(); }
 
+struct Arguments {
+  TString collectionTag;
+  int iStart;
+  int iFED;
+  int nEvents;
+  bool scan;
+  bool all;
+  bool headerOnly;
+
+  Arguments() :
+    collectionTag("rawDataCollector"),
+    iStart(0),
+    iFED(601),
+    nEvents(1),
+    scan(false),
+    all(false),
+    headerOnly(false)
+  {}
+};
+
+void scanRaw(TFile&, Arguments const&);
+void dumpRaw(TFile&, Arguments const&);
+
 int
 main(int argc, char** argv)
 {
-  TString collectionTag("rawDataCollector");
-  int iStart(0);
-  int iFED(601);
-  int nEvents(1);
-  bool scan(false);
-  bool all(false);
+  Arguments args;
 
   opterr = 0;
 
   bool parseOpts(true);
   int opt(0);
   while(parseOpts){
-    opt = getopt(argc, argv, ":c:s:F:n:SAh");
+    opt = getopt(argc, argv, ":c:s:F:n:SAHh");
     switch(opt){
     case '?':
       std::cerr << "Unknown option -" << char(optopt) << std::endl;
@@ -63,22 +78,25 @@ main(int argc, char** argv)
       parseOpts = false;
       break;
     case 'c':
-      collectionTag = optarg;
+      args.collectionTag = optarg;
       break;
     case 's':
-      iStart = TString(optarg).Atoi();
+      args.iStart = TString(optarg).Atoi();
       break;
     case 'F':
-      iFED = TString(optarg).Atoi();
+      args.iFED = TString(optarg).Atoi();
       break;
     case 'n':
-      nEvents = TString(optarg).Atoi();
+      args.nEvents = TString(optarg).Atoi();
       break;
     case 'S':
-      scan = true;
+      args.scan = true;
       break;
     case 'A':
-      all = true;
+      args.all = true;
+      break;
+    case 'H':
+      args.headerOnly = true;
       break;
     case 'h':
       std::cout << "Usage: dumpFEDRawData [-c Collection][-s iStart][-F iFED][-n nEvents][-S] input" << std::endl;
@@ -98,58 +116,63 @@ main(int argc, char** argv)
   AutoLibraryLoader::enable();
 
   TFile* input(TFile::Open(argv[optind]));
+  if(!input) return 1;
 
-  if(scan) scanRaw(input, collectionTag, iStart, all);
-  else dumpRaw(input, collectionTag, iStart, iFED, nEvents);
+  if(args.scan) scanRaw(*input, args);
+  else dumpRaw(*input, args);
+
+  delete input;
 
   return 0;
 }
 
 void
-scanRaw(TFile* input, TString const& collectionTag, int iStart, bool all/* = false*/)
+scanRaw(TFile& _input, Arguments const& _args)
 {
-  fwlite::Event event(input);
+  fwlite::Event event(&_input);
 
   event.toBegin();
-  int iEvent(0);
-  while(!event.atEnd() && ++iEvent < iStart) ++event;
+  int iEntry(0);
+  while(!event.atEnd() && ++iEntry < _args.iStart) ++event;
   if(event.atEnd()) return;
 
   fwlite::Handle<FEDRawDataCollection> rawData;
-  rawData.getByLabel(event, collectionTag);
+  rawData.getByLabel(event, _args.collectionTag);
 
   if(!rawData.isValid()){
-    std::cout << "FEDRawDataCollection " << collectionTag << " not found" << std::endl;
+    std::cout << "FEDRawDataCollection " << _args.collectionTag << " not found" << std::endl;
     return;
   }
 
-  for(int iFED(all ? 0 : 601); iFED != (all ? FEDNumbering::lastFEDId() + 1 : 655); ++iFED)
+  for(int iFED(_args.all ? 0 : 601); iFED != (_args.all ? FEDNumbering::lastFEDId() + 1 : 655); ++iFED)
     std::cout << iFED << " " << rawData->FEDData(iFED).size() << std::endl;
 }
 
 void
-dumpRaw(TFile* input, TString const& collectionTag, int iStart, int iFED, int nEvents)
+dumpRaw(TFile& _input, Arguments const& _args)
 {
-  fwlite::Event event(input);
+  fwlite::Event event(&_input);
 
   event.toBegin();
-  int iEvent(0);
-  while(!event.atEnd() && ++iEvent < iStart) ++event;
+  int iEntry(0);
+  while(!event.atEnd() && ++iEntry < _args.iStart) ++event;
   if(event.atEnd()) return;
 
-  nEvents += iEvent;
+  iEntry = 0;
 
-  while(iEvent++ != nEvents){
+  while(iEntry++ != _args.nEvents){
     fwlite::Handle<FEDRawDataCollection> rawData;
   
-    rawData.getByLabel(event, collectionTag);
+    rawData.getByLabel(event, _args.collectionTag);
   
     if(!rawData.isValid()){
-      std::cout << "FEDRawDataCollection " << collectionTag << " not found" << std::endl;
+      std::cout << "FEDRawDataCollection " << _args.collectionTag << " not found" << std::endl;
       return;
     }
   
     FEDRawData const* fedData(0);
+
+    int iFED(_args.iFED);
   
     if(iFED < 0){
       bool found(false);
@@ -161,22 +184,31 @@ dumpRaw(TFile* input, TString const& collectionTag, int iStart, int iFED, int nE
     }
     else
       fedData = &(rawData->FEDData(iFED));
+
+    bool isECALFED(iFED >= 601 && iFED <= 654);
   
     uint64_t const * pdata = (uint64_t const *)fedData->data();
   
     std::cout << std::dec;
   
-    std::cout << "--------- DUMP FED " << iFED << " EVENT " << iEvent << "-------------" << std::endl;
+    std::cout << "--------- DUMP FED " << iFED << " ENTRY " << iEntry << "-------------" << std::endl;
+    std::cout << " RUN " << event.id().run() << " LUMI " << event.id().luminosityBlock() << " EVENT " << event.id().event() << std::endl;
+    std::cout << " TRIGTYPE " << event.experimentType() << " ORBIT " << event.orbitNumber() << " BX " << event.bunchCrossing() << std::endl;
   
     std::cout << std::hex;
   
     unsigned iData(0);
     unsigned blockSize(0);
-    unsigned towerId(0);
-    for(unsigned u(0); u < fedData->size()/(sizeof(uint64_t)/sizeof(unsigned char)); ++u){
+    unsigned nRows(_args.headerOnly ? 1 : fedData->size()/(sizeof(uint64_t)/sizeof(unsigned char)));
+    for(unsigned u(0); u < nRows; ++u){
       Word w(pdata[u]);
       std::cout << std::setw(16) << std::setfill('0') << w;
-      if(w(62, 2) == 3){ // data block
+      if(u == 0){
+        std::cout << std::dec << "   ";
+        std::cout << " " << w(60, 4) << " " << w(56, 4) << " " << w(32, 24) << " " << w(20, 12) << " " << w(8, 12) << " " << w(4, 4);
+      }
+      else if(isECALFED && w(62, 2) == 3){ // data block
+	std::cout << std::dec << "   ";
         if(iData == 0){
 	  towerId = w(0, 8);
 	  if(towerId != 69){
