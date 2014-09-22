@@ -172,16 +172,22 @@ dumpRaw(TFile* input, TString const& collectionTag, int iStart, int iFED, int nE
   
     unsigned iData(0);
     unsigned blockSize(0);
+    unsigned towerId(0);
     for(unsigned u(0); u < fedData->size()/(sizeof(uint64_t)/sizeof(unsigned char)); ++u){
       Word w(pdata[u]);
       std::cout << std::setw(16) << std::setfill('0') << w;
       if(w(62, 2) == 3){ // data block
-	std::cout << std::dec << "   ";
         if(iData == 0){
-	  std::cout << " " << w(62, 2) << " " << w(48, 9) << " " << w(44, 1) << " " << w(32, 12) << " " << w(30, 2) << " " << w(28, 1) << " " << w(16, 12) << " " << w(8, 8) << " " << w(0, 8);
-	  blockSize = w(48, 9);
+	  towerId = w(0, 8);
+	  if(towerId != 69){
+	    std::cout << std::dec << "   ";
+	    std::cout << " " << w(62, 2) << " " << w(48, 9) << " " << w(44, 1) << " " << w(32, 12) << " " << w(30, 2) << " " << w(28, 1) << " " << w(16, 12) << " " << w(8, 8) << " " << w(0, 8);
+	    blockSize = w(48, 9);
+	  }
 	}
-	else{
+	else if(towerId != 69){
+	  std::cout << std::dec << "   ";
+
 	  if(iData % 3 == 1){
 	    int adc3(w(48, 12));
 	    int adc2(w(32, 12));
