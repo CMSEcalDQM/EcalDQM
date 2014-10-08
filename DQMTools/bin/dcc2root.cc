@@ -17,22 +17,35 @@ extern int opterr;
 extern int optopt;
 extern int optind;
 extern char* optarg;
+
+struct Arguments {
+  TString collectionTag;
+  TString outputName;
+
+  Arguments() :
+    collectionTag("rawDataCollector"),
+    outputName("dcc.root")
+  {}
+};
+
+bool makeNtuples(TFile&, Arguments const&);
+
+void usage()
+{
+  std::cout << "Usage: dcc2root [-o outputName] input" << std::endl;
+}
+
 int
 main(int argc, char** argv)
 {
-  TString collectionTag("rawDataCollector");
-  int iStart(0);
-  int iFED(601);
-  int nEvents(1);
-  bool scan(false);
-  bool all(false);
+  Arguments args;
 
   opterr = 0;
 
   bool parseOpts(true);
   int opt(0);
   while(parseOpts){
-    opt = getopt(argc, argv, ":c:s:F:n:SAh");
+    opt = getopt(argc, argv, ":o:h");
     switch(opt){
     case '?':
       std::cerr << "Unknown option -" << char(optopt) << std::endl;
@@ -41,26 +54,11 @@ main(int argc, char** argv)
       std::cerr << "Option -" << char(optopt) << " requires an argument" << std::endl;
       parseOpts = false;
       break;
-    case 'c':
-      collectionTag = optarg;
-      break;
-    case 's':
-      iStart = TString(optarg).Atoi();
-      break;
-    case 'F':
-      iFED = TString(optarg).Atoi();
-      break;
-    case 'n':
-      nEvents = TString(optarg).Atoi();
-      break;
-    case 'S':
-      scan = true;
-      break;
-    case 'A':
-      all = true;
+    case 'o':
+      args.outputName = optarg;
       break;
     case 'h':
-      std::cout << "Usage: dumpFEDRawData [-c Collection][-s iStart][-F iFED][-n nEvents][-S] input" << std::endl;
+      usage();
       return 0;
     default:
       parseOpts = false;
@@ -69,7 +67,7 @@ main(int argc, char** argv)
   }
 
   if(optind != argc - 1){
-    std::cerr << "Usage: dumpFEDRawData [-c Collection][-s iStart][-F iFED][-n nEvents][-S] input" << std::endl;
+    usage();
     return 1;
   }
 
@@ -77,9 +75,14 @@ main(int argc, char** argv)
   AutoLibraryLoader::enable();
 
   TFile* input(TFile::Open(argv[optind]));
+  if(!input){
+    std::cerr << argv[optind] << " could not be opened." << std::endl;
+    return 1;
+  }
 
-  if(scan) scanRaw(input, collectionTag, iStart, all);
-  else dumpRaw(input, collectionTag, iStart, iFED, nEvents);
+  int retval(makeNtuples(*input, args));
 
-  return 0;
+  delete input;
+
+  return retval;
 }
