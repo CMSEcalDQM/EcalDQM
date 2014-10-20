@@ -23,11 +23,13 @@ int
 main(int argc, char** argv)
 {
   TString collectionTag("rawDataCollector");
+  unsigned maxEvents(-1);
+  int searchForEvent(-1);
 
   bool parseOpts(true);
   int opt(0);
   while(parseOpts){
-    opt = getopt(argc, argv, ":c:h");
+    opt = getopt(argc, argv, ":c:N:E:h");
     switch(opt){
     case '?':
       std::cerr << "Unknown option -" << char(optopt) << std::endl;
@@ -38,6 +40,12 @@ main(int argc, char** argv)
       break;
     case 'c':
       collectionTag = optarg;
+      break;
+    case 'N':
+      maxEvents = TString(optarg).Atoi();
+      break;
+    case 'E':
+      searchForEvent = TString(optarg).Atoi();
       break;
     case 'h':
       std::cout << "Usage: ecalhdr [-c Collection] input" << std::endl;
@@ -67,7 +75,10 @@ main(int argc, char** argv)
 
   std::stringstream ss;
 
-  for(event.toBegin(); !event.atEnd(); ++event){
+  unsigned nEvent(0);
+  for(event.toBegin(); !event.atEnd(); ++event, ++nEvent){
+    if(nEvent == maxEvents) break;
+
     ss.clear();
     ss.str("");
 
@@ -81,6 +92,7 @@ main(int argc, char** argv)
     ss << "--------------------- " << event.id().event() << " ---------------------" << std::endl;
 
     bool hasEcal(false);
+    bool typeMatch(false);
 
     for(unsigned iFED(601); iFED != 655; ++iFED){
       FEDRawData  const& fedData(rawData->FEDData(iFED));
@@ -151,6 +163,8 @@ main(int argc, char** argv)
 	}
       }
 
+      if(eventType == searchForEvent) typeMatch = true;
+
       char typeStr[10];
       std::sprintf(typeStr, " %d ", eventType);
       if(typeStr[2] == '\0'){
@@ -160,7 +174,7 @@ main(int argc, char** argv)
       ss << typeStr;
     }
 
-    if(hasEcal)
+    if(hasEcal && (searchForEvent == -1 || typeMatch))
       std::cout << ss.str() << std::endl;
   }
       
