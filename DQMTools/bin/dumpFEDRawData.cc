@@ -199,6 +199,7 @@ dumpRaw(TFile& _input, Arguments const& _args)
   
     unsigned iData(0);
     unsigned blockSize(0);
+    int towerId(0);
     unsigned nRows(_args.headerOnly ? 1 : fedData->size()/(sizeof(uint64_t)/sizeof(unsigned char)));
     for(unsigned u(0); u < nRows; ++u){
       Word w(pdata[u]);
