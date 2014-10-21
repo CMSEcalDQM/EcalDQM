@@ -71,7 +71,7 @@ main(int argc, char** argv)
 
   for(unsigned iFED(1); iFED != 55; ++iFED)
     std::cout << 600 + iFED << " ";
-  std::cout << std::endl;
+  std::cout << 1024 << std::endl;
 
   std::stringstream ss;
 
@@ -86,7 +86,7 @@ main(int argc, char** argv)
 
     if(!rawData.isValid()){
       std::cout << "FEDRawDataCollection " << collectionTag << " not found" << std::endl;
-      break;
+      return 1;
     }
 
     ss << "--------------------- " << event.id().event() << " ---------------------" << std::endl;
@@ -165,14 +165,24 @@ main(int argc, char** argv)
 
       if(eventType == searchForEvent) typeMatch = true;
 
-      char typeStr[10];
-      std::sprintf(typeStr, " %d ", eventType);
-      if(typeStr[2] == '\0'){
-	typeStr[2] = ' ';
-	typeStr[3] = '\0';
-      }
-      ss << typeStr;
+      ss << " " << std::setw(2) << eventType << " ";
     }
+
+    do{
+      FEDRawData  const& fedData(rawData->FEDData(1024));
+
+      if(fedData.size() / sizeof(uint64_t) < 2){
+        ss << " -  ";
+        continue;
+      }
+
+      uint64_t const* pdata(reinterpret_cast<uint64_t const*>(fedData.data()));
+
+      unsigned trigType((*pdata >> 56) & 0xf);
+
+      ss << " " << std::setw(2) << trigType << " ";
+    }
+    while(false);
 
     if(hasEcal && (searchForEvent == -1 || typeMatch))
       std::cout << ss.str() << std::endl;
